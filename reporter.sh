@@ -139,17 +139,21 @@ echo -e "[INFO] Getting changed Drupal nodes View..."
 
 for SITE_INDEX in "${!SITES[@]}"; do
     echo -e "[INFO] Processing ${SITES[SITE_INDEX]}..."
-    
+    echo -e ""
     # Get request working and save data,
     URL="$SITE/jsonapi/views/publishing_report/default?views-filter%5Bchanged%5D%5Bmin%5D=$START_DATE&views-filter%5Bchanged%5D%5Bmax%5D=$END_DATE&views-filter%5Bfield_site_target_id%5D=$SITE_INDEX"
-    echo -e "Requesting data from $URL"
+    echo -e "[INFO] Requesting data from: \n$URL"
     # Request the data from $URL, and save it to output.txt
     DATA=$(curl -sqk "$URL"  | jq '.meta.count')
     EXIT_CODE=$? receivedData 'changed Drupal nodes View'
     
-    echo $DATA
+    COUNT=$(echo $DATA | tr -d '"')
     
-    $JSON = $(echo $JSON | jq ".data.attributes.field_reporting_${SITES[SITE_INDEX]}_figure = $DATA")
+    echo 'Changed files: '$((COUNT))
+
+# TODO: jq isn't liking the value being passed...
+    echo $JSON | jq ".data.attributes.field_reporting_${SITES[SITE_INDEX]}_figure |= $((COUNT))"
+    echo -e ""
 done;
 
 echo -e "Building JSON object to send to Drupal..."
