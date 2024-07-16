@@ -32,9 +32,7 @@ REPORTER_SCRIPT_LOGFILE="$REPORTER_ACTIVITY_DIR/reporter-output-$NOW.log"
 mkdir $DIR
 mkdir $REPORTER_ACTIVITY_DIR
 
-SITES=("amp" "anbg" "bnp" "cinp" "corp" "knp" "ninp" "pknp" "uktnp")
-# Send script output to the script logfile
-# exec > $REPORTER_SCRIPT_LOGFILE 2>&1
+declare -A SITES=([amp]=400 [anbg]=0 [bnp]=0 [cinp]=0 [corp]=0 [knp]=0 [ninp]=0 [pknp]=0 [uktnp]=0)
 
 JSON="{
     "data": {
@@ -137,24 +135,62 @@ echo -e "[INFO] Getting changed Drupal nodes View..."
 
 # TODO: Also fetch changed Documents/images/files
 
-for SITE_INDEX in "${!SITES[@]}"; do
-    echo -e "[INFO] Processing ${SITES[SITE_INDEX]}..."
+for INDEX in "${!SITES[@]}"; do
+    SITE_ID=${!$INDEX}
+    
+    # echo "key: $INDEX"
+    # echo ${!SITES[@]}
+    
+    echo -e "[INFO] Processing $INDEX..."
+    
     echo -e ""
     # Get request working and save data,
-    URL="$SITE/jsonapi/views/publishing_report/default?views-filter%5Bchanged%5D%5Bmin%5D=$START_DATE&views-filter%5Bchanged%5D%5Bmax%5D=$END_DATE&views-filter%5Bfield_site_target_id%5D=$SITE_INDEX"
+    URL="$SITE/jsonapi/views/publishing_report/default?views-filter%5Bchanged%5D%5Bmin%5D=$START_DATE&views-filter%5Bchanged%5D%5Bmax%5D=$END_DATE&views-filter%5Bfield_site_target_id%5D=$SITE_ID"
     echo -e "[INFO] Requesting data from: \n$URL"
     # Request the data from $URL, and save it to output.txt
-    DATA=$(curl -sqk "$URL"  | jq '.meta.count')
+    DATA=$(curl -sqk "$URL"  | jq -r '.meta.count')
     EXIT_CODE=$? receivedData 'changed Drupal nodes View'
     
-    COUNT=$(echo $DATA | tr -d '"')
-    
-    echo 'Changed files: '$((COUNT))
-
-# TODO: jq isn't liking the value being passed...
-    echo $JSON | jq ".data.attributes.field_reporting_${SITES[SITE_INDEX]}_figure |= $((COUNT))"
+    echo 'Changed files: '$(($DATA))
+    SITES[$INDEX]=$((DATA))
+    # echo -e ""
+    # # echo -e $JSON | jq ".data.attributes.field_reporting_${SITES[$INDEX]}_figure |= .+6"
+    # echo $JSON
+    echo "value: ${SITES[$INDEX]}"
     echo -e ""
 done;
+
+echo $SITES
+
+JSON_STRING=$( jq -n \
+    --arg name "$REPORT_NAME" \
+    --arg amp "$AMP_COUNT" \
+    --arg anbg "$ANBG_COUNT" \
+    --arg bnp "$BNP_COUNT" \
+    --arg cinp "$CINP_COUNT" \
+    --arg corp "$CORP_COUNT" \
+    --arg knp "$KNP_COUNT" \
+    --arg ninp "$NINP_COUNT" \
+    --arg pknp "$PKNP_COUNT" \
+    --arg uktnp "$UKTNP_COUNT" \
+    '{
+    "data": {
+        "type": "taxonomy_term--reporting_entries",
+        "attributes": {
+            "title": "$name",
+            "field_reporting_amp_figure": $amp,
+            "field_reporting_anbg_figure": $anbg,
+            "field_reporting_bnp_figure": $bnp,
+            "field_reporting_cinp_figure": $cinp,
+            "field_reporting_corp_figure": $corp,
+            "field_reporting_knp_figure": $knp,
+            "field_reporting_ninp_figure": $ninp,
+            "field_reporting_pknp_figure": $pknp,
+            "field_reporting_uktnp_figure": $uktnp
+        }
+    }
+}' )
+
 
 echo -e "Building JSON object to send to Drupal..."
 
