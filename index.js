@@ -13,9 +13,16 @@ if (!apiKey) {
 }
 
 // TODO: Get correct month format for when script runs
-let date = new Date();
-let firstDayOfMonth = new Date(date.getFullYear(), date.getMonth() - 1);
-let lastDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+// TODO: Write function to retrieve date range of previous month, 
+// TODO: including previous years and leap years
+let now = new Date().toISOString();
+let year = now.slice(0, 4),
+  month = now.slice(5, 7),
+  day = now.slice(8,10);
+
+console.log(year);
+console.log(month);
+console.log(day);
 
 let startDate = "2024-06-01 00:00:00";
 let endDate = "2024-06-30 23:59:59";
@@ -37,7 +44,7 @@ const structure = {
   data: {
     type: "taxonomy_term--reporting_entries",
     attributes: {
-      title: "$name",
+      name: `${year}-${month}`,
     },
   },
 };
@@ -79,7 +86,7 @@ const promises = sitesList.map(async (site, index) => {
   const data = await fetchJsonData(url);
 
   if (data && data.data && data.data.length >= 0) {
-    console.log(`${site}: ${data.meta.count}`);
+    console.log(`${data.meta.count} changed pages for ${site}`);
     const targetProp = `field_reporting_${site}_figure`;
     structure.data.attributes[targetProp] = data.meta.count;
   } else {
@@ -89,23 +96,28 @@ const promises = sitesList.map(async (site, index) => {
 
 Promise.all(promises)
   .then(async () => {
-    console.log("Data to send to Drupal for recording:");
-    console.dir(structure, { depth: 3 });
-
+    console.log("\nData to send to Drupal for recording:\n");
+    console.dir(structure, { depth: null });
+    const headers = {
+      "Content-type": "application/vnd.api+json",
+      Accept: "application/vnd.api+json",
+      "api-key": `${apiKey}`,
+    };
     // Send data to Drupal to create a new reporting Taxonomy Term
-    const drupalPost = await fetch(`${domain}/jsonapi/node/reporting_entries`, {
-      method: "POST",
-      headers: {
-        "Content-type": "application/vnd.api+json",
-        Accept: "application/vnd.api+json",
-        Authorization: `${apiKey}`,
-      },
-      body: JSON.stringify(structure),
-    });
+    const drupalPost = await fetch(
+      `${domain}/jsonapi/taxonomy_term/reporting_entries`,
+      {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(structure),
+      }
+    );
     const drupalResponse = await drupalPost;
 
-    console.dir(drupalResponse, { depth: 3 });
-    
+    console.log(
+      `Drupal response: ${drupalResponse.status}: ${drupalResponse.statusText}`
+    );
+
     console.log("\nReport generated successfully!");
   })
   .catch((error) => {
