@@ -1,0 +1,18 @@
+{
+  "name": "reporter",
+  "version": "1.0.0",
+  "description": "Captures changed files in Drupal via JSON API, and publishes the results to a Reporter Taxonomy in Drupal",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Tim Fletcher",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.14.10"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "process": "^0.11.10"
+  }
+}
