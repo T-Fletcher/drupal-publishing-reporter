@@ -6,7 +6,7 @@
 // Source location: https://github.com/parks-australia/drupal-publishing-reporter
 // ====================
 
-// - Fetches Views data from Drupal for each parks visitor site at 
+// - Fetches Views data from Drupal for each parks visitor site at
 //     /jsonapi/views/publishing_report/default
 // - Sends results back to Drupal via JSON API to create a record for reporting
 // - NOTE: Drupal expects View date/time arguments in AEST
@@ -18,7 +18,8 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const apiKey = process.env.DRUPAL_API_KEY,
   drupalSite = process.env.DRUPAL_DOMAIN,
-  debugMode = isStrTrue(process.env.DEBUG_MODE);
+  debugMode = isStrTrue(process.env.DEBUG_MODE),
+  termIsNew = false;
 
 if (!apiKey) {
   throw new Error("API key not found in environment variables");
@@ -34,20 +35,20 @@ function isStrTrue(str) {
 if (debugMode) {
   console.log("\n[DEBUG] Debugging enabled!\n");
 }
-  // To avoid hassles with daylight savings, we convert the date to AEST and
-  // output it in a consistent format we can slice
-  // Outputs date as `dd/mm/yyyy, hh:mm:ss PM`
-  function convertDate(date) {
-    return date.toLocaleString("en-US", {
-      timeZone: "Australia/Sydney",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  }
+// To avoid hassles with daylight savings, we convert the date to AEST and
+// output it in a consistent format we can slice
+// Outputs date as `dd/mm/yyyy, hh:mm:ss PM`
+function convertDate(date) {
+  return date.toLocaleString("en-US", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
 
 const getLastMonthEndDate = () => {
     let date = new Date();
@@ -122,10 +123,29 @@ const fetchJsonData = async (url) => {
 };
 
 console.log(
-  `\n[INFO] Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...\n`
+  `\n[INFO] Checking if term ${year}-${month} already exists in Drupal...\n`
 );
 
-const promises = sitesList.map(async (site, index) => {
+const allowNewTerm = () =>
+  new Promise(async (resolve, reject) => {
+    let url = `${domain}/jsonapi/taxonomy_term/reporting_entries?filter%5Bname%5D%5Bvalue%5D=${year}-${month}`;
+    const data = await fetchJsonData(url);
+    if (data && data.data && data.data.length >= 0) {
+      parseInt(data.meta.count) > 0
+        ? reject("[ERROR] Term already exists in Drupal")
+        : resolve("[INFO] No existing term found in Drupal, safe to proceed");
+    } else {
+      reject("[ERROR] Term exists Request failed!");
+    }
+  }).catch((err) => {
+    console.error(err);
+  });
+
+console.log(
+  `[INFO] Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...\n`
+);
+
+const gatherChanges = sitesList.map(async (site, index) => {
   let url = `${domain}/jsonapi/views/publishing_report/default?views-filter%5Bchanged%5D%5Bmin%5D=${encodeURI(
     dateRange.start
   )}&views-filter%5Bchanged%5D%5Bmax%5D=${encodeURI(
@@ -151,7 +171,8 @@ const promises = sitesList.map(async (site, index) => {
   }
 });
 
-Promise.all(promises)
+
+Promise.all([allowNewTerm(), gatherChanges])
   .then(async () => {
     submitReport = true;
 
@@ -182,9 +203,11 @@ Promise.all(promises)
     );
 
     const drupalResponse = await drupalPost;
-    
+
     if (parseInt(drupalResponse.status) === 201) {
-      console.log(`[INFO] Reporting term '${structure.data.attributes.name}' created successfully!`);
+      console.log(
+        `[INFO] Reporting term '${structure.data.attributes.name}' created successfully!`
+      );
     } else {
       console.log(
         `[ERROR] Issue encountered while attempting to create reporting term:`
