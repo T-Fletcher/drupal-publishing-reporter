@@ -3,7 +3,8 @@ Captures the changed files in Drupal every month, then creates Taxonomy Terms in
 
 ## ENV vars
 
-- `DRUPAL_API_KEY` - The user API of the Drupal site (must have publishing permissions to create Reporting Entries taxonomy terms)
+- `DRUPAL_API_KEY` - string - The user API of the Drupal site (must have publishing permissions to create Reporting Entries taxonomy terms)
+- `DRUPAL_DOMAIN` - string - The full URL of the Drupal site
 - `DEBUG_MODE` - boolean - Enabled debugging output in the logs when the app runs
 
 ## JSON API data structure

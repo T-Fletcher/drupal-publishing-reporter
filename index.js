@@ -17,10 +17,14 @@ require("dotenv").config();
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const apiKey = process.env.DRUPAL_API_KEY,
+  drupalSite = process.env.DRUPAL_DOMAIN,
   debugMode = isStrTrue(process.env.DEBUG_MODE);
 
 if (!apiKey) {
   throw new Error("API key not found in environment variables");
+}
+if (!drupalSite) {
+  throw new Error("Drupal domain not found in environment variables");
 }
 
 function isStrTrue(str) {
@@ -70,7 +74,7 @@ const year = startDate.slice(6, 10),
     end: `${year}-${month}-${lastDay} 23:59:59`,
   };
 
-const domain = "https://parksaustralia-cms.lndo.site";
+const domain = drupalSite;
 let sitesList = [
   "amp",
   "anbg",
