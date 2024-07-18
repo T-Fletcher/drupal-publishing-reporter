@@ -68,8 +68,9 @@ const year = startDate.slice(6, 10),
   };
 
 // Capture the script output in logs
+const time = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
 let log_file = fs.createWriteStream(
-  __dirname + `/reporter-activity/reporter-${year}-${month}.log`,
+  __dirname + `/logs/reporter-${time}UTC.log`,
   { flags: "w" }
 );
 let log_stdout = process.stdout;
