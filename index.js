@@ -20,6 +20,8 @@ const apiKey = process.env.DRUPAL_API_KEY,
   drupalSite = process.env.DRUPAL_DOMAIN,
   debugMode = isStrTrue(process.env.DEBUG_MODE) | false;
 
+debugMode && console.log("\n[DEBUG] Debugging enabled!\n");
+
 if (!apiKey) {
   throw new Error("API key not found in environment variables");
 }
@@ -31,9 +33,6 @@ function isStrTrue(str) {
   return str === "true" ? true : false;
 }
 
-if (debugMode) {
-  console.log("\n[DEBUG] Debugging enabled!\n");
-}
 // To avoid hassles with daylight savings, we convert the date to AEST and
 // output it in a consistent format we can slice
 // Outputs date as `dd/mm/yyyy, hh:mm:ss PM`
@@ -146,7 +145,7 @@ async function allowNewTerm() {
   return await newTerm;
 }
 
-async function getCountForSite(data, site) {
+async function getSiteChangesData(data, site) {
   let siteChanges = new Promise((resolve, reject) => {
     if (data && data.data && data.data.length >= 0) {
       if (parseInt(data.meta.count) === 1) {
@@ -166,36 +165,29 @@ async function getCountForSite(data, site) {
   return await siteChanges;
 }
 
-async function getAllSiteCounts() {
-  console.log(
-    `[INFO] Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...\n`
-  );
-
-  for (let i = 0; i < sitesList.length; i++) {
-    let url = `${reportUrl}${i + 1}`;
-
-    if (debugMode) {
-      console.log(`[DEBUG] ${url}`);
-    }
-
-    const data = await fetchJsonData(url);
-
-    let siteData = await getCountForSite(data, sitesList[i]);
-
-    if (debugMode) {
-      console.log(`[DEBUG] ${siteData}`);
-    }
-  };
-}
-
-Promise.all([allowNewTerm(), getAllSiteCounts()])
+// Only request the rest of the data if the record doesn't exist in Drupal
+Promise.all([allowNewTerm()])
   .then(async () => {
+    console.log(
+      `[INFO] Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...\n`
+    );
+
+    for (let i = 0; i < sitesList.length; i++) {
+      let url = `${reportUrl}${i + 1}`;
+
+      debugMode && console.log(`[DEBUG] ${url}`);
+
+      const data = await fetchJsonData(url);
+      let siteData = await getSiteChangesData(data, sitesList[i]);
+
+      debugMode && console.log(`[DEBUG] Promise response: ${siteData}`);
+    }
+
     console.log("\n[INFO] Reporting data collected!\n");
 
-    if (debugMode) {
-      console.log("[DEBUG] Data to submit to Drupal:");
+    debugMode &&
+      console.log("[DEBUG] Data to submit to Drupal:") &&
       console.dir(structure, { depth: null });
-    }
 
     const headers = {
       "Content-type": "application/vnd.api+json",
@@ -232,7 +224,6 @@ Promise.all([allowNewTerm(), getAllSiteCounts()])
     }
     console.log("\n[INFO] Script complete!");
   })
-
   .catch((error) => {
     console.error(error);
   });
