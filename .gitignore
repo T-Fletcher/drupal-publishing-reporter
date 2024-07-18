@@ -1,8 +1,6 @@
 # ignore 
 node_modules
-output.txt
-data.json
 reporter-history.log
-reporter-output-*
+logs/reporter-*
 .env
 .env*
