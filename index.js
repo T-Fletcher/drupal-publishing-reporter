@@ -18,8 +18,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const apiKey = process.env.DRUPAL_API_KEY,
   drupalSite = process.env.DRUPAL_DOMAIN,
-  debugMode = isStrTrue(process.env.DEBUG_MODE),
-  termIsNew = false;
+  debugMode = isStrTrue(process.env.DEBUG_MODE) | false;
 
 if (!apiKey) {
   throw new Error("API key not found in environment variables");
@@ -77,16 +76,21 @@ const year = startDate.slice(6, 10),
 
 const domain = drupalSite;
 let sitesList = [
-  "amp",
-  "anbg",
-  "bnp",
-  "cinp",
-  "corp",
-  "knp",
-  "ninp",
-  "pknp",
-  "uktnp",
-];
+    "amp",
+    "anbg",
+    "bnp",
+    "cinp",
+    "corp",
+    "knp",
+    "ninp",
+    "pknp",
+    "uktnp",
+  ],
+  reportUrl = `${domain}/jsonapi/views/publishing_report/default?views-filter%5Bchanged%5D%5Bmin%5D=${encodeURI(
+    dateRange.start
+  )}&views-filter%5Bchanged%5D%5Bmax%5D=${encodeURI(
+    dateRange.end
+  )}&views-filter%5Bfield_site_target_id%5D=`;
 
 const structure = {
   data: {
@@ -122,60 +126,70 @@ const fetchJsonData = async (url) => {
   }
 };
 
-console.log(
-  `\n[INFO] Checking if term ${year}-${month} already exists in Drupal...\n`
-);
-
-const allowNewTerm = () =>
-  new Promise(async (resolve, reject) => {
-    let url = `${domain}/jsonapi/taxonomy_term/reporting_entries?filter%5Bname%5D%5Bvalue%5D=${year}-${month}`;
-    const data = await fetchJsonData(url);
-    if (data && data.data && data.data.length >= 0) {
-      parseInt(data.meta.count) > 0
-        ? reject("[ERROR] Term already exists in Drupal")
-        : resolve("[INFO] No existing term found in Drupal, safe to proceed");
-    } else {
-      reject("[ERROR] Term exists Request failed!");
-    }
-  }).catch((err) => {
-    console.error(err);
-  });
+console.log(`[INFO] Collecting reporting data for ${year}-${month}...`);
 
 console.log(
-  `[INFO] Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...\n`
+  `\n[INFO] Checking if term '${year}-${month}' already exists in Drupal's 'Reporting entries' Taxnomy...\n`
 );
 
-const gatherChanges = sitesList.map(async (site, index) => {
-  let url = `${domain}/jsonapi/views/publishing_report/default?views-filter%5Bchanged%5D%5Bmin%5D=${encodeURI(
-    dateRange.start
-  )}&views-filter%5Bchanged%5D%5Bmax%5D=${encodeURI(
-    dateRange.end
-  )}&views-filter%5Bfield_site_target_id%5D=${index + 1}`;
-
-  if (debugMode) {
-    console.log(`[DEBUG] ${url}`);
-  }
-
+async function allowNewTerm() {
+  let url = `${domain}/jsonapi/taxonomy_term/reporting_entries?filter%5Bname%5D%5Bvalue%5D=${year}-${month}`;
   const data = await fetchJsonData(url);
 
-  if (data && data.data && data.data.length >= 0) {
-    if (parseInt(data.meta.count) === 1) {
-      console.log(`[INFO] ${data.meta.count} changed page for ${site}`);
+  let newTerm = new Promise((resolve, reject) => {
+    data && data.data && data.data.length >= 0 && parseInt(data.meta.count) < 1
+      ? resolve(`[INFO] Term '${year}-${month}' does not exist, proceeding...`)
+      : reject(
+          new Error(`[ERROR] Term '${year}-${month}' already exists, quiting!`)
+        );
+  });
+  return await newTerm;
+}
+
+async function getCountForSite(data, site) {
+  let siteChanges = new Promise((resolve, reject) => {
+    if (data && data.data && data.data.length >= 0) {
+      if (parseInt(data.meta.count) === 1) {
+        console.log(`[INFO] ${data.meta.count} changed page for ${site}`);
+      } else {
+        console.log(`[INFO] ${data.meta.count} changed pages for ${site}`);
+      }
+      const targetProp = `field_reporting_${site}_figure`;
+      structure.data.attributes[targetProp] = parseInt(data.meta.count);
+      resolve(`Change data for '${site}' retrieved successfully`);
     } else {
-      console.log(`[INFO] ${data.meta.count} changed pages for ${site}`);
+      reject(`Failed to retrieve change data for '${site}'`);
     }
-    const targetProp = `field_reporting_${site}_figure`;
-    structure.data.attributes[targetProp] = parseInt(data.meta.count);
-  } else {
-    console.log(`[WARNING] No data found for ${site}`);
-  }
-});
+  }).catch((error) => {
+    new Error(error);
+  });
+  return await siteChanges;
+}
 
+async function getAllSiteCounts() {
+  console.log(
+    `[INFO] Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...\n`
+  );
 
-Promise.all([allowNewTerm(), gatherChanges])
+  for (let i = 0; i < sitesList.length; i++) {
+    let url = `${reportUrl}${i + 1}`;
+
+    if (debugMode) {
+      console.log(`[DEBUG] ${url}`);
+    }
+
+    const data = await fetchJsonData(url);
+
+    let siteData = await getCountForSite(data, sitesList[i]);
+
+    if (debugMode) {
+      console.log(`[DEBUG] ${siteData}`);
+    }
+  };
+}
+
+Promise.all([allowNewTerm(), getAllSiteCounts()])
   .then(async () => {
-    submitReport = true;
-
     console.log("\n[INFO] Reporting data collected!\n");
 
     if (debugMode) {
@@ -209,15 +223,16 @@ Promise.all([allowNewTerm(), gatherChanges])
         `[INFO] Reporting term '${structure.data.attributes.name}' created successfully!`
       );
     } else {
-      console.log(
+      console.error(
         `[ERROR] Issue encountered while attempting to create reporting term:`
       );
-      console.log(
+      console.error(
         `[ERROR] Drupal response: ${drupalResponse.status}: ${drupalResponse.statusText}`
       );
     }
     console.log("\n[INFO] Script complete!");
   })
+
   .catch((error) => {
     console.error(error);
   });
