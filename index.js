@@ -13,21 +13,15 @@
 
 require("dotenv").config();
 
+const fs = require("fs");
+const util = require("util");
+
 // Ignore SSL issues for local testing
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const apiKey = process.env.DRUPAL_API_KEY,
   drupalSite = process.env.DRUPAL_DOMAIN,
   debugMode = isStrTrue(process.env.DEBUG_MODE) | false;
-
-debugMode && console.log("\n[DEBUG] Debugging enabled!\n");
-
-if (!apiKey) {
-  throw new Error("API key not found in environment variables");
-}
-if (!drupalSite) {
-  throw new Error("Drupal domain not found in environment variables");
-}
 
 function isStrTrue(str) {
   return str === "true" ? true : false;
@@ -73,6 +67,49 @@ const year = startDate.slice(6, 10),
     end: `${year}-${month}-${lastDay} 23:59:59`,
   };
 
+// Capture the script output in logs
+let log_file = fs.createWriteStream(
+  __dirname + `/reporter-activity/reporter-${year}-${month}.log`,
+  { flags: "w" }
+);
+let log_stdout = process.stdout;
+// Remap console.log to write to the log file
+console.log = function (d) {
+  log_file.write(`[INFO] ${util.format(d)}\n`);
+  log_stdout.write(`[INFO] ${util.format(d)}\n`);
+};
+console.warn = function (d) {
+  log_file.write(`[WARN] ${util.format(d)}\n`);
+  log_stdout.write(`[WARN] ${util.format(d)}\n`);
+};
+console.error = function (d) {
+  log_file.write(`[ERROR] ${util.format(d)}\n`);
+  log_stdout.write(`[ERROR] ${util.format(d)}\n`);
+};
+console.debug = function (d) {
+  log_file.write(`[DEBUG] ${util.format(d)}\n`);
+  log_stdout.write(`[DEBUG] ${util.format(d)}\n`);
+};
+console.dir = function (d) {
+  log_file.write(`${util.format(d)}\n`);
+  log_stdout.write(`${util.format(d)}\n`);
+};
+
+console.log(
+  `Running Drupal Publishing Reporter for ${year}-${month} at ${new Date().toISOString()} UTC...`
+);
+
+debugMode && console.debug("Debugging enabled!");
+
+if (!apiKey) {
+  console.error("API key not found in environment variables, quitting...");
+  return;
+}
+if (!drupalSite) {
+  console.error("Drupal domain not found in environment variables, quitting...");
+  return;
+}
+
 const domain = drupalSite;
 let sitesList = [
     "amp",
@@ -111,9 +148,8 @@ const fetchJsonData = async (url) => {
     const response = await fetch(url, options);
 
     if (response.status !== 200) {
-      throw new Error(
-        `[ERROR - Data]: No data fetched for: \n${url}\nReceived response: \n${response.status} ${response.statusText}`
-      );
+      let msg = `[ERROR - Data]: No data fetched for: \n${url}\nReceived response: \n${response.status} ${response.statusText}`;
+      throw new Error(msg);
     } else {
       const jsonData = await response.json();
       if (jsonData.data !== null && jsonData.data !== undefined) {
@@ -125,10 +161,10 @@ const fetchJsonData = async (url) => {
   }
 };
 
-console.log(`[INFO] Collecting reporting data for ${year}-${month}...`);
+console.log(`Preparing to collect reporting data for ${year}-${month}...`);
 
 console.log(
-  `\n[INFO] Checking if term '${year}-${month}' already exists in Drupal's 'Reporting entries' Taxnomy...\n`
+  `Checking if term '${year}-${month}' already exists in Drupal's 'Reporting entries' taxonomy...`
 );
 
 async function allowNewTerm() {
@@ -137,10 +173,8 @@ async function allowNewTerm() {
 
   let newTerm = new Promise((resolve, reject) => {
     data && data.data && data.data.length >= 0 && parseInt(data.meta.count) < 1
-      ? resolve(`[INFO] Term '${year}-${month}' does not exist, proceeding...`)
-      : reject(
-          new Error(`[ERROR] Term '${year}-${month}' already exists, quiting!`)
-        );
+      ? resolve(`Term '${year}-${month}' does not exist, proceeding...`)
+      : reject(new Error(`Term '${year}-${month}' already exists, quiting!`));
   });
   return await newTerm;
 }
@@ -149,9 +183,9 @@ async function getSiteChangesData(data, site) {
   let siteChanges = new Promise((resolve, reject) => {
     if (data && data.data && data.data.length >= 0) {
       if (parseInt(data.meta.count) === 1) {
-        console.log(`[INFO] ${data.meta.count} changed page for ${site}`);
+        console.log(`${data.meta.count} changed page for ${site}`);
       } else {
-        console.log(`[INFO] ${data.meta.count} changed pages for ${site}`);
+        console.log(`${data.meta.count} changed pages for ${site}`);
       }
       const targetProp = `field_reporting_${site}_figure`;
       structure.data.attributes[targetProp] = parseInt(data.meta.count);
@@ -169,25 +203,24 @@ async function getSiteChangesData(data, site) {
 Promise.all([allowNewTerm()])
   .then(async () => {
     console.log(
-      `[INFO] Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...\n`
+      `Gathering changed pages for each site from ${dateRange.start} to ${dateRange.end}...`
     );
 
     for (let i = 0; i < sitesList.length; i++) {
       let url = `${reportUrl}${i + 1}`;
 
-      debugMode && console.log(`[DEBUG] ${url}`);
+      debugMode && console.debug(`${url}`);
 
       const data = await fetchJsonData(url);
       let siteData = await getSiteChangesData(data, sitesList[i]);
 
-      debugMode && console.log(`[DEBUG] Promise response: ${siteData}`);
+      debugMode && console.debug(`Promise response: ${siteData}`);
     }
 
-    console.log("\n[INFO] Reporting data collected!\n");
+    console.log("Reporting data collected!");
 
-    debugMode &&
-      console.log("[DEBUG] Data to submit to Drupal:") &&
-      console.dir(structure, { depth: null });
+    debugMode && console.debug("Data to submit to Drupal:");
+    debugMode && console.dir(structure, { depth: null });
 
     const headers = {
       "Content-type": "application/vnd.api+json",
@@ -212,17 +245,17 @@ Promise.all([allowNewTerm()])
 
     if (parseInt(drupalResponse.status) === 201) {
       console.log(
-        `[INFO] Reporting term '${structure.data.attributes.name}' created successfully!`
+        `Reporting term '${structure.data.attributes.name}' created successfully!`
       );
     } else {
       console.error(
-        `[ERROR] Issue encountered while attempting to create reporting term:`
+        `Issue encountered while attempting to create reporting term:`
       );
       console.error(
-        `[ERROR] Drupal response: ${drupalResponse.status}: ${drupalResponse.statusText}`
+        `Drupal response: ${drupalResponse.status}: ${drupalResponse.statusText}`
       );
     }
-    console.log("\n[INFO] Script complete!");
+    console.log("Script complete!");
   })
   .catch((error) => {
     console.error(error);
