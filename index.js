@@ -30,9 +30,13 @@ function isStrTrue(str) {
 // To avoid hassles with daylight savings, we convert the date to AEST and
 // output it in a consistent format we can slice
 // Outputs date as `dd/mm/yyyy, hh:mm:ss PM`
-function convertDate(date) {
+function convertDateToAEST(date) {
   return date.toLocaleString("en-US", {
     timeZone: "Australia/Sydney",
+  });
+}
+function formatDate(date) {
+  return date.toLocaleString("en-US", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -41,22 +45,23 @@ function convertDate(date) {
     second: "2-digit",
   });
 }
-
-const getLastMonthEndDate = () => {
-    let date = new Date();
-    date.setDate(1);
-    date.setDate(date.getDate() - 1);
-    date.setHours(23, 59, 59, 999);
-    return date;
+const dateInit = convertDateToAEST(new Date()),
+  getLastMonthStartDate = (date) => {
+    let newDate = new Date(date);
+    newDate.setDate(1);
+    newDate.setMonth(newDate.getMonth() - 1);
+    newDate.setHours(0, 0, 0, 0);
+    return newDate;
   },
-  endDate = convertDate(getLastMonthEndDate()),
-  getLastMonthStartDate = () => {
-    let date = new Date(endDate);
-    date.setDate(1);
-    date.setHours(0, 0, 0, 0);
-    return date;
+  getLastMonthEndDate = (date) => {
+    let newDate = new Date(getLastMonthStartDate(date));
+    newDate.setMonth(newDate.getMonth() + 1);
+    newDate.setDate(newDate.getDate() - 1);
+    newDate.setHours(23, 59, 59, 999);
+    return newDate;
   },
-  startDate = convertDate(getLastMonthStartDate());
+  startDate = formatDate(getLastMonthStartDate(dateInit)),
+  endDate = formatDate(getLastMonthEndDate(dateInit));
 
 // Build the date strings to be used in the Drupal View query parameter
 const year = startDate.slice(6, 10),
@@ -68,7 +73,7 @@ const year = startDate.slice(6, 10),
   };
 
 // Capture the script output in logs
-const time = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+const time = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
 let log_file = fs.createWriteStream(
   __dirname + `/logs/reporter-${time}UTC.log`,
   { flags: "w" }
@@ -107,7 +112,9 @@ if (!apiKey) {
   return;
 }
 if (!drupalSite) {
-  console.error("Drupal domain not found in environment variables, quitting...");
+  console.error(
+    "Drupal domain not found in environment variables, quitting..."
+  );
   return;
 }
 
