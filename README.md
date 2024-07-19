@@ -5,6 +5,7 @@ Captures the changed files in Drupal every month, then creates Taxonomy Terms in
 
 - Node.js
 - A Drupal user account API key with publishing access to the 'Reporting Entries' Taxonomy
+- an `.env` file containing the variables mentioned below
 
 ## How it works
 
@@ -60,3 +61,13 @@ To create the Taxonomy terms, Drupal expects a payload that looks like this:
 If any fields are missing, Drupal will return a 422 error when you attempt to create the Term, indicating a malformed object. This is because all fields are required. 
 
 The [Drupal doco covers using JSON API to create content](https://www.drupal.org/docs/core-modules-and-themes/core-modules/jsonapi-module/creating-new-resources-post) in more detail.
+
+## Running via crontab
+
+If running the script using a crontab e.g. on Linux, you'll need to:
+1. specify the full path of Node's installation (`$ which node`)
+2. jump into the script's directory as part of running it so it finds the `.env` file
+
+```bash
+23 07 * * * cd /home/<user>/reporter; ~/.nvm/versions/node/v20.15.1/bin/node /home/<user>/reporter/index.js
+```
