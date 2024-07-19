@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "process": "^0.11.10"
+    "process": "^0.11.10",
+    "shelljs": "^0.8.5"
   }
 }

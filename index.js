@@ -12,7 +12,7 @@
 // - NOTE: Drupal expects View date/time arguments in AEST
 
 require("dotenv").config();
-
+const shell = require("shelljs");
 const fs = require("fs");
 const util = require("util");
 
@@ -169,7 +169,17 @@ const fetchJsonData = async (url) => {
   }
 };
 
-console.log(`Preparing to collect reporting data for ${year}-${month}...`);
+// As Drupal's JSON API caches rather aggressively, flush the cache first to
+// guarantee clean data
+console.log('Flushing Drupal PROD site cache to guarantee clean JSON API data...');
+if (
+  shell.exec("terminus remote:drush parksaustralia-cms.live -- cr").code !== 0
+) {
+  console.error("Failed to rebuild caches, quitting...");
+  return
+} else { 
+  console.log("Rebuilt Drupal's caches successfully!");
+}
 
 console.log(
   `Checking if term '${year}-${month}' already exists in Drupal's 'Reporting entries' taxonomy...`
@@ -182,7 +192,7 @@ async function allowNewTerm() {
   let newTerm = new Promise((resolve, reject) => {
     data && data.data && data.data.length >= 0 && parseInt(data.meta.count) < 1
       ? resolve(`Term '${year}-${month}' does not exist, proceeding...`)
-      : reject(new Error(`Term '${year}-${month}' already exists, quiting!`));
+      : reject(new Error(`Term '${year}-${month}' already exists, quitting!`));
   });
   return await newTerm;
 }
