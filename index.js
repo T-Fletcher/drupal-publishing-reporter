@@ -16,15 +16,18 @@ const shell = require("shelljs");
 const fs = require("fs");
 const util = require("util");
 
-// Ignore SSL issues for local testing
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 const apiKey = process.env.DRUPAL_API_KEY,
-  drupalSite = process.env.DRUPAL_DOMAIN,
-  debugMode = isStrTrue(process.env.DEBUG_MODE) | false;
+drupalSite = process.env.DRUPAL_DOMAIN,
+debugMode = isStrTrue(process.env.DEBUG_MODE) || false,
+localEnv = isStrTrue(process.env.LOCAL_ENV) || false;
 
 function isStrTrue(str) {
   return str === "true" ? true : false;
+}
+
+// Ignore SSL issues for local testing
+if (localEnv) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 }
 
 // To avoid hassles with daylight savings, we convert the date to AEST and

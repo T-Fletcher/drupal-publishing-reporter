@@ -17,10 +17,11 @@ This means exposing all content modified in past months is unlikely to be a reli
 
 To capture a reliable record of the number of changed files in Drupal every month, the figures need to be periodically captured and stored **as** they change with time. That's where this app comes in:
 
-1. It checks no record for the previous month already exists in Drupal
-2. It queries a Drupal View via JSON API to get the number of changed files per Parks site
-3. It compiles the results into a single JSON object to send to Drupal
-4. It submits a JSON API `POST` request to create a new 'Reporting entries' Taxonomy term in Drupal
+1. It clears the PROD Drupal site's cache to guarantee fresh data from JSON API
+2. It checks no record for the previous month already exists in Drupal
+3. It queries a Drupal View via JSON API to get the number of changed files per Parks site
+4. It compiles the results into a single JSON object to send to Drupal
+5. It submits a JSON API `POST` request to create a new 'Reporting entries' Taxonomy term in Drupal
 
 The figures for that month is then available in Drupal as a Taxonomy term to be used in Views or however it's needed. You could send it elsewhere via JSON API if you wanted. 
 
@@ -30,9 +31,10 @@ A record of each run of the app is stored under `/logs/reporter-*`.
 
 ## Environment variables
 
-- `DRUPAL_API_KEY` - string - The user API of the Drupal site (must have publishing permissions to create Reporting Entries taxonomy terms)
-- `DRUPAL_DOMAIN` - string - The full URL of the Drupal site
-- `DEBUG_MODE` - boolean - Enabled debugging output in the logs when the app runs. Disabled by default. 
+- `DRUPAL_API_KEY` - string - The user API of the Drupal site (must have publishing permissions to create Reporting Entries taxonomy terms).
+- `DRUPAL_DOMAIN` - string - The full URL of the Drupal site.
+- `DEBUG_MODE` - boolean - Enabled debugging output in the logs when the app runs. Disabled by default.
+- `LOCAL_ENV` - boolean - Disables SSL verification checks to make life easier when testing against a local site.
 
 ## JSON API data structure
 
